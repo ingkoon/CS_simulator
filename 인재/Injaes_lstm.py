@@ -12,21 +12,24 @@ PH = 5
 def readData(filename):
     #실제 반환될 배열
     EntryData = []
+
     x_data = []
     y_data = []
     A1c_data = []
     glucose_data =[]
+    food_data = []
     ####임시 배열
     tmp_x = []
     tmp_y = []
     tmp_A1c = []
     tmp_glucose = []
+    tmp_food = []
     with open(filename,'r') as f:
         # 읽기모드로 파일을 연다.
         for line in f:
             EntryData.append(float(line.split(',')[0]))
             # EntryData에 float형으로 파일의 각 라인의 ','앞의 값들을 추가한다.
-
+            tmp_Food.append(float(line.split(',')[1]))
     df = pd.Series(EntryData)
     # Series를 사용하여 EntryData에 인덱스를 추가한다
         # 예)  0   4
@@ -80,7 +83,7 @@ def readData(filename):
 
         #for i in range(1,9):
         #    print(df[i])
-
+    food_data.append(tmp_food)
     if(len(x_data[-1]) != 7):
        xSize = 7-len(x_data[-1])
         # x_data의 마지막 데이터 행의 데이터수가 7개보다 부족하면 xSize를 부족한수로 지정
@@ -100,7 +103,9 @@ def readData(filename):
     # asarray를 사용하여 A1c_data를 배열형태로 만든다   ?행 1열
     glucose_data = np.asarray(glucose_data)
     # asarray를 사용하여 glucose_data를 배열형태로 만든다   ?행 1열
-    data = [x_data,y_data,A1c_data,glucose_data]        #    7 , 1 , 1  , 1
+    tmp_food =  np.asarray(food_data)
+    # asarray를 사용하여 glucose_data를 배열형태로 만든다   ?행 1열
+    data = [x_data,y_data,A1c_data,glucose_data, food_data]        #    7 , 1 , 1  , 1
     return data
 
     # readData 함수의 리턴값은 배열형태의 값들을 모아둔 data
@@ -126,6 +131,10 @@ glucoseList = []
 glucose_train = []
 glucose_test = []
 
+FoodList = []
+Food_train = []
+Food_test = []
+
 A1cList = []
 A1c_train = []
 A1c_test = []
@@ -144,7 +153,7 @@ for fn in train_data_name:
         print(fn+"제외")
         # 이름에 365303 인 파일을 제외시킨다
     else:
-        x,y,a,g = readData("sch/"+str(fn))
+        x,y,a,g,f = readData("sch/"+str(fn))
         # x,y,a,g 에 readData의 리턴값인 [x_data, y_data, A1c_data, glucose_data]를 각 변수에 저장한다.
 
         train_x_data.append(x)
@@ -158,6 +167,9 @@ for fn in train_data_name:
 
         glucoseList.append(g)
         glucose_train.append(g)
+
+        FoodList.append(f)
+        Food_train.append(f)
 
 
 
@@ -173,7 +185,7 @@ for fn in test_data_name:
         print(fn+"제외")
         # 이름에 365303 인 파일을 제외시킨다.
     else:
-        x,y,a,g = readData("sch/"+str(fn))
+        x,y,a,g,f = readData("sch/"+str(fn))
         # x,y,a,g 에 readData의 리턴값인 [x_data, y_data, A1c_data, glucose_data]를 각 변수에 저장한다.
 
         test_x_data.append(x)
@@ -188,6 +200,9 @@ for fn in test_data_name:
         glucoseList.append(g)
         glucose_test.append(g)
 
+        FoodList.append(f)
+        Food_test.append(f)
+
 #print(glucoseList[0])
 print(test_x_data[5])
 
@@ -196,6 +211,7 @@ X = tf.placeholder(tf.float32,shape=[None,7,1])
 Y = tf.placeholder(tf.float32,shape=[None,1])
 A1c = tf.placeholder(tf.float32,shape=[None,1])
 G = tf.placeholder(tf.float32,shape=[None,1])
+F = tf.placeholder(tf.float32,shape=[None,1])
 # placeholer를 사용해 각 행과열의 텐서들을 생성합니다.
 
 '''
@@ -214,6 +230,8 @@ Y_A = tf.contrib.layers.fully_connected(A1c,1,activation_fn=tf.sigmoid)
 #  a1c 가중치 데이터
 Y_g = tf.contrib.layers.fully_connected(G,1,activation_fn=tf.sigmoid)
 #  은닉층에 추가한 글루코오스 파라미터
+Y_f = tf.contrib.layers.fully_connected(F,1,activation_fn=tf.sigmoid)
+#  은닉층에 추가한   파라미터
 Y_pr = tf.contrib.layers.fully_connected(Y_p+Y_A+Y_g,15,activation_fn=None)
 #  셀에서 나온 혈당데이터와 a1c 가중치 데이터를 함친것
 Y_pre =  tf.contrib.layers.fully_connected(Y_pr,1,activation_fn=None)
@@ -239,7 +257,7 @@ sess.run(tf.global_variables_initializer())
 
 for loop in range(len(total_x_data)):
     for i in  range(700):
-        sess.run(train,feed_dict = {X:total_x_data[loop],Y:total_y_data[loop],A1c:A1cList[loop],G:glucoseList[loop]})
+        sess.run(train,feed_dict = {X:total_x_data[loop],Y:total_y_data[loop],A1c:A1cList[loop],G:glucoseList[loop],F:FoodList[loop]})
         #sess.run(train,feed_dict = {X:total_x_data[loop],Y:total_y_data[loop]})
     print(str(loop / len(total_x_data) * 100) + "%")
 
@@ -247,7 +265,7 @@ for loop in range(len(total_x_data)):
 pre_List = []
 for loop in range(len(test_x_data)):
     for i,k in enumerate(test_x_data[8]):
-        ln = sess.run(Y_pre,feed_dict={X:[k],A1c:A1c_test[8],G:glucose_test[8]})
+        ln = sess.run(Y_pre,feed_dict={X:[k],A1c:A1c_test[8],G:glucose_test[8],F:FoodList[8]})
         print("실제혈당 : "+str(test_y_data[8][i])+"예측혈당 : "+str(ln[0][0]))
         pre_List.append(ln[0][0])
         #print([sess.run(Y_p,feed_dict={X:[k]})[0][0],10.0])
@@ -265,7 +283,7 @@ for size in range(len(test_x_data)):
         total_num += 1
         one_person_num += 1
         #print(sess.run(rmse,feed_dict={X:[k],Y:[test_y_data[size][i]],A1c:[A1c_test[size][i]],G:[glucose_test[size][i]]}))
-        tmp = sess.run(rmse,feed_dict={X:[k],Y:[test_y_data[size][i]],A1c:[A1c_test[size][i]],G:[glucose_test[size][i]]})
+        tmp = sess.run(rmse,feed_dict={X:[k],Y:[test_y_data[size][i]],A1c:[A1c_test[size][i]],G:[glucose_test[size][i],F:[Food_test[size][i]]]})
         rmse_total += tmp
         rmse_one += tmp
     print(str(size+1)+"번째 환자 rmse : "+str(rmse_one/float(one_person_num)))
